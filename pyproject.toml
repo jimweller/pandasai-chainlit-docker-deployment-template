@@ -9,11 +9,11 @@ packages = [{include = "pandasai_chainlit_docker_deployment_template"}]
 
 
 [tool.poetry.dependencies]
-python = "^3.10"
-openai = "^0.27.8"
-chainlit = "^0.3.0"
-pandasai = "^0.5.2"
-
+python = ">=3.10,<4.0.0"
+chainlit = "^1.1.202"
+pyyaml = "^6.0.1"
+pandasai = {extras = ["bedrock", "connectors"], version = "^2.0.43"}
+boto3 = "^1.34.111"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,9 +1,9 @@
 # The builder image, used to build the virtual environment
 FROM python:3.11-slim-buster as builder
 
-RUN apt-get update && apt-get install -y git
+RUN apt-get update && apt-get install -y git gcc
 
-RUN pip install poetry==1.4.2
+RUN pip install poetry==1.4.2 cx_oracle 
 
 ENV POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \

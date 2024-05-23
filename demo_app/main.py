@@ -1,54 +1,103 @@
 """Python file to serve as the frontend"""
 import sys
 import os
-import pandas as pd
 import io
-sys.path.append(os.path.abspath('.'))
+import yaml
 
-from demo_app._utils import generate_pandasai_response
+import boto3
+
+import pandas as pd
+
+import pandasai
+from pandasai import SmartDataframe
+from pandasai import SmartDatalake
+from pandasai.connectors import PostgreSQLConnector
+from pandasai.llm.local_llm import LocalLLM
+from pandasai.llm import BedrockClaude
+
+
 
 import chainlit as cl
 
-from chainlit.types import AskFileResponse
+
+import pandasai 
 
 
-def process_file(file: AskFileResponse):
-    import tempfile
+#llm_local = LocalLLM(api_base="http://localhost:1234/v1")
 
-    with tempfile.NamedTemporaryFile() as tempfile:
-        tempfile.write(file.content)
-        df = pd.read_csv(tempfile.name)
+bedrock_runtime_client = boto3.client('bedrock-runtime',region_name='us-east-1')
 
-    print(df.head(5))
+llm_bedrock = BedrockClaude(bedrock_runtime_client)
 
-    return df
+
+# ec2_data = {
+#     'ec2_id': [1, 2, 3, 4, 5],
+#     'Name': ['vm01', 'vm02', 'vm03', 'vm04', 'vm05']
+# }
+
+# storage_data = {
+#     'ec2_id': [1, 2, 3, 4, 5],
+#     'storage': [5000, 6000, 4500, 7000, 5500]
+# }
+
+# ec2_df = pd.DataFrame(ec2_data)
+# storage_df = pd.DataFrame(storage_data)
+
+
+postgres_connector = PostgreSQLConnector(
+    config={
+        "host": "SERVER",
+        "port": 5432,
+        "database": "cq",
+        "username": "USERNAME",
+        "password": "PASSWORD",
+        "table": "aws_ec2_instances",
+    }
+)
+
+
+
+#lake = SmartDatalake([ec2_df,storage_df], config={"llm": model})
+df = SmartDataframe(postgres_connector, config={"llm": llm_bedrock})
+
+#    chain = LLMChain(llm=model)
+
+
 
 @cl.on_chat_start
 async def on_chat_start():
-    files = await cl.AskFileMessage(
-        content="Please upload a CSV file", accept=["text/csv"]
-    ).send()
-    file = files[0]
-    csv_file = io.BytesIO(file.content)
-    df = pd.read_csv(csv_file, encoding="latin1")
-    cl.user_session.set('data', df)
-    await cl.Message(
-        content="The first 5 rows of the file are:\n" + str(df.head())
-    ).send()
+    cl.user_session.set(
+        "message_history",
+        [{"role": "system", "content": "You are a helpful data analyst."}],
+    )
+
+
 
 
 @cl.on_message
-async def main(message: str):
-    # Your custom logic goes here...
+async def on_message(message: str):
+    message_history = cl.user_session.get("message_history")
+    message_history.append({"role": "user", "content": message.content})
 
-    # Use PandasAI to Run the Query on Uploaded CSV file
-    answer = generate_pandasai_response(df=cl.user_session.get('data'),
-                                        prompt=message,
-                                        model_option="OpenAI",
-                                        is_conversational_answer=True,
-                                        is_verbose=True)
+    question = message.content
+    response = df.chat(question)
+    msg = cl.Message(content=response)
 
-    # Send a response back to the user
-    await cl.Message(
-        content=answer,
-    ).send()
+    await msg.send()
+
+
+    message_history.append({"role": "assistant", "content": msg.content})
+    await msg.update()
+
+
+
+
+    # # Your custom logic goes here...
+
+
+    # answer = lake.chat(message)
+
+    # # Send a response back to the user
+    # await cl.Message(
+    #     content=answer,
+    # ).send()
